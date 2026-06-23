@@ -62,7 +62,7 @@ export default function VolumeControl({ videoRef }: VolumeControlProps) {
         step="0.05"
         value={isMuted ? 0 : volume}
         onChange={onSliderChange}
-        className="w-0 h-1 accent-[#FF003C] bg-zinc-700 rounded-lg appearance-none cursor-pointer group-hover/volume:w-16 transition-all duration-300 origin-left"
+        className="w-0 opacity-0 pointer-events-none h-1 accent-[#FF003C] bg-zinc-700 rounded-lg appearance-none cursor-pointer group-hover/volume:w-16 group-hover/volume:opacity-100 group-hover/volume:pointer-events-auto transition-all duration-300 origin-left"
       />
     </div>
   );
