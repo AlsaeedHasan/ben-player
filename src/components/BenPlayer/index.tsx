@@ -143,11 +143,11 @@ export default function BenPlayer({
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
 
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
       e.preventDefault();
-      const rect = e.currentTarget.getBoundingClientRect();
-      const touchX = e.touches[0].clientX - rect.left;
-
       if (touchX < rect.width / 2) {
         if (videoRef.current)
           videoRef.current.currentTime = Math.max(
@@ -164,11 +164,7 @@ export default function BenPlayer({
         triggerIndicator("forward");
       }
     } else {
-      if (showControls) {
-        togglePlay();
-      } else {
-        handleMouseMove();
-      }
+      setShowControls((prev) => !prev);
     }
     lastTapRef.current = now;
   };
@@ -384,6 +380,7 @@ export default function BenPlayer({
           }}
           onDoubleClick={handleVideoDoubleClick}
           onTouchStart={handleVideoTouchStart}
+          onContextMenu={(e) => e.preventDefault()}
           className={`w-full h-full object-contain cursor-pointer ${isAnyFullscreen ? "rounded-none" : "rounded-xl"}`}
           playsInline
         />
