@@ -164,7 +164,11 @@ export default function BenPlayer({
         triggerIndicator("forward");
       }
     } else {
-      handleMouseMove();
+      if (showControls) {
+        togglePlay();
+      } else {
+        handleMouseMove();
+      }
     }
     lastTapRef.current = now;
   };
@@ -418,11 +422,11 @@ export default function BenPlayer({
       )}
 
       <div
-        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/50 transition-opacity duration-300 flex flex-col justify-between p-4 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/50 transition-opacity duration-300 flex flex-col justify-between p-4 pointer-events-none ${
+          showControls ? "opacity-100" : "opacity-0"
         } ${isAnyFullscreen ? "rounded-none" : "rounded-xl"}`}
       >
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center pointer-events-auto">
           <h2 className="text-xs font-medium tracking-wide text-zinc-300 truncate max-w-md">
             {title}
           </h2>
@@ -431,7 +435,7 @@ export default function BenPlayer({
           </span>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 pointer-events-auto">
           <ProgressBar progress={progress} videoRef={videoRef} />
 
           <div className="flex items-center justify-between text-zinc-300">
