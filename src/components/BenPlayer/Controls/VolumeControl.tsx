@@ -10,7 +10,7 @@ interface VolumeControlProps {
 export default function VolumeControl({ videoRef }: VolumeControlProps) {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -32,7 +32,13 @@ export default function VolumeControl({ videoRef }: VolumeControlProps) {
     }
   };
 
-  const toggleMute = () => {
+  const handleVolumeClick = (e: React.MouseEvent) => {
+    if (window.matchMedia("(max-width: 768px)").matches && !isMobileExpanded) {
+      e.preventDefault();
+      setIsMobileExpanded(true);
+      return;
+    }
+
     if (!videoRef.current) return;
     videoRef.current.muted = !videoRef.current.muted;
     if (!videoRef.current.muted && videoRef.current.volume === 0) {
@@ -40,10 +46,17 @@ export default function VolumeControl({ videoRef }: VolumeControlProps) {
     }
   };
 
+  const handleMouseLeave = () => {
+    setIsMobileExpanded(false);
+  };
+
   return (
-    <div className="flex items-center space-x-2 group/volume">
+    <div
+      onMouseLeave={handleMouseLeave}
+      className="flex items-center space-x-2 group/volume"
+    >
       <button
-        onClick={toggleMute}
+        onClick={handleVolumeClick}
         className="hover:text-[#FF003C] transition-colors duration-200"
       >
         {isMuted ? (
@@ -62,7 +75,11 @@ export default function VolumeControl({ videoRef }: VolumeControlProps) {
         step="0.05"
         value={isMuted ? 0 : volume}
         onChange={onSliderChange}
-        className="w-0 opacity-0 pointer-events-none h-1 accent-[#FF003C] bg-zinc-700 rounded-lg appearance-none cursor-pointer group-hover/volume:w-16 group-hover/volume:opacity-100 group-hover/volume:pointer-events-auto transition-all duration-300 origin-left"
+        className={`h-1 accent-[#FF003C] bg-zinc-700 rounded-lg appearance-none cursor-pointer transition-all duration-300 origin-left ${
+          isMobileExpanded
+            ? "w-16 opacity-100 pointer-events-auto"
+            : "w-0 opacity-0 pointer-events-none md:group-hover/volume:w-16 md:group-hover/volume:opacity-100 md:group-hover/volume:pointer-events-auto"
+        }`}
       />
     </div>
   );

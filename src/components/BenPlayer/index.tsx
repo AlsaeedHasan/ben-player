@@ -39,6 +39,7 @@ export default function BenPlayer({
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -55,16 +56,16 @@ export default function BenPlayer({
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const indicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingTimeRef = useRef<number | null>(null);
+  const lastTapRef = useRef<number>(0);
 
-  const speeds = [0.5, 1, 1.25, 1.5, 2];
+  const speeds = [0.5, 1, 1.25, 1.5, 1.75, 2];
   const videoStorageKey = `benplayer_resume_${title.replace(/\s+/g, "_")}`;
   const qualityStorageKey = "benplayer_preferred_quality";
 
-  const getVideoUrl = (url: string) => {
-    if (url.startsWith("http") && !url.includes(window.location.host)) {
-      return `/api/proxy?url=${encodeURIComponent(url)}`;
+  const triggerMobileVibrate = () => {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(15);
     }
-    return url;
   };
 
   useEffect(() => {
@@ -98,16 +99,27 @@ export default function BenPlayer({
     if (typeof document !== "undefined" && document.pictureInPictureEnabled) {
       setIsPiPSupported(true);
     }
-    const handleFullscreenChange = () =>
-      setIsFullscreen(!!document.fullscreenElement);
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) setIsFullscreen(false);
+    };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () =>
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isPseudoFullscreen)
+        setIsPseudoFullscreen(false);
+    };
+    window.addEventListener("keydown", handleEscKey);
+    return () => window.removeEventListener("keydown", handleEscKey);
+  }, [isPseudoFullscreen]);
+
   const triggerIndicator = (type: "forward" | "rewind") => {
     if (indicatorTimeoutRef.current) clearTimeout(indicatorTimeoutRef.current);
     setOverlayIndicator(type);
+    triggerMobileVibrate();
     indicatorTimeoutRef.current = setTimeout(
       () => setOverlayIndicator(null),
       600,
@@ -124,6 +136,37 @@ export default function BenPlayer({
         .catch((err) => console.log("Playback interrupted:", err));
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const handleVideoTouchStart = (e: React.TouchEvent<HTMLVideoElement>) => {
+    if (videoError) return;
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+
+      if (touchX < rect.width / 2) {
+        if (videoRef.current)
+          videoRef.current.currentTime = Math.max(
+            0,
+            videoRef.current.currentTime - 10,
+          );
+        triggerIndicator("rewind");
+      } else {
+        if (videoRef.current)
+          videoRef.current.currentTime = Math.min(
+            videoRef.current.duration,
+            videoRef.current.currentTime + 10,
+          );
+        triggerIndicator("forward");
+      }
+    } else {
+      handleMouseMove();
+    }
+    lastTapRef.current = now;
   };
 
   const handleQualityChange = (quality: VideoQualitySource) => {
@@ -158,11 +201,14 @@ export default function BenPlayer({
 
   const toggleFullscreen = () => {
     if (!playerContainerRef.current) return;
+
     if (!document.fullscreenElement) {
       playerContainerRef.current
         .requestFullscreen()
         .then(() => setIsFullscreen(true))
-        .catch((err) => console.error(err));
+        .catch(() => {
+          setIsPseudoFullscreen(true);
+        });
     } else {
       document.exitFullscreen();
       setIsFullscreen(false);
@@ -183,6 +229,7 @@ export default function BenPlayer({
   };
 
   const handleVideoDoubleClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    if (window.matchMedia("(max-width: 768px)").matches) return;
     if (!videoRef.current || videoError) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -256,7 +303,7 @@ export default function BenPlayer({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPlaying, isFullscreen, videoError]);
+  }, [isPlaying, isFullscreen, isPseudoFullscreen, videoError]);
 
   const handleMouseMove = () => {
     setShowControls(true);
@@ -277,15 +324,23 @@ export default function BenPlayer({
     }
   };
 
+  const isAnyFullscreen = isFullscreen || isPseudoFullscreen;
+
   return (
     <div
       ref={playerContainerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
-      className="relative w-full max-w-5xl mx-auto aspect-video bg-[#050505] overflow-hidden group border border-[#1a1a1a] rounded-xl shadow-[0_0_40px_rgba(255,0,60,0.03)] select-none"
+      className={`relative w-full max-w-5xl mx-auto aspect-video bg-[#050505] border border-[#1a1a1a] select-none transition-all duration-300 ${
+        isAnyFullscreen
+          ? "fixed inset-0 z-[9999] max-w-none w-screen h-screen rounded-none border-none bg-black"
+          : "rounded-xl shadow-[0_0_40px_rgba(255,0,60,0.03)]"
+      }`}
     >
       {videoError ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#070707] text-zinc-400 p-6 z-50 border border-red-950/40">
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center bg-[#070707] text-zinc-400 p-6 z-50 border border-red-950/40 ${isAnyFullscreen ? "" : "rounded-xl"}`}
+        >
           <AlertTriangle
             size={36}
             className="text-[#FF003C] drop-shadow-[0_0_8px_rgba(255,0,60,0.4)] mb-2 animate-pulse"
@@ -294,9 +349,8 @@ export default function BenPlayer({
             {videoError}
           </p>
           <p className="text-[10px] text-zinc-500 text-center mt-2 max-w-md leading-relaxed">
-            This stream was blocked or uses an invalid codec. BenPlayer
-            automatically launched an Edge Proxy session to bypass
-            referrer-checks.
+            Ensure the format is compatible and the remote video host allows
+            framing hooks.
           </p>
         </div>
       ) : (
@@ -312,21 +366,21 @@ export default function BenPlayer({
           onSeeking={() => setIsBuffering(true)}
           onSeeked={() => setIsBuffering(false)}
           onError={() => {
-            const errCode = videoRef.current?.error?.code;
-            if (errCode === 4 || errCode === 3) {
-              setVideoError(
-                "Format not supported or access blocked by host (403 Forbidden).",
-              );
-            } else {
-              setVideoError("Failed to fetch media stream from remote source.");
-            }
+            setVideoError(
+              "Format not supported or connection dropped by server.",
+            );
             setIsBuffering(false);
           }}
           onClick={(e) => {
-            if (e.detail === 1) togglePlay();
+            if (
+              !window.matchMedia("(max-width: 768px)").matches &&
+              e.detail === 1
+            )
+              togglePlay();
           }}
           onDoubleClick={handleVideoDoubleClick}
-          className="w-full h-full object-contain cursor-pointer"
+          onTouchStart={handleVideoTouchStart}
+          className={`w-full h-full object-contain cursor-pointer ${isAnyFullscreen ? "rounded-none" : "rounded-xl"}`}
           playsInline
         />
       )}
@@ -364,7 +418,9 @@ export default function BenPlayer({
       )}
 
       <div
-        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/50 transition-opacity duration-300 flex flex-col justify-between p-4 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-black/50 transition-opacity duration-300 flex flex-col justify-between p-4 ${
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+        } ${isAnyFullscreen ? "rounded-none" : "rounded-xl"}`}
       >
         <div className="flex justify-between items-center">
           <h2 className="text-xs font-medium tracking-wide text-zinc-300 truncate max-w-md">
@@ -423,7 +479,7 @@ export default function BenPlayer({
               </button>
 
               {showSettings && (
-                <div className="absolute bottom-12 right-0 bg-[#0A0A0A]/95 border border-[#262626] rounded-xl p-2 w-44 shadow-2xl z-50 backdrop-blur-md flex flex-col space-y-3">
+                <div className="absolute bottom-12 right-0 bg-[#0A0A0A]/95 border border-[#262626] rounded-xl p-2 w-44 shadow-2xl z-50 backdrop-blur-md flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
                   <div>
                     <div className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold px-2 py-1 border-b border-zinc-900 mb-1">
                       Quality
@@ -452,11 +508,7 @@ export default function BenPlayer({
                       {speeds.map((speed) => (
                         <button
                           key={speed}
-                          onClick={
-                            speed === playbackSpeed
-                              ? undefined
-                              : () => handleSpeedChange(speed)
-                          }
+                          onClick={() => handleSpeedChange(speed)}
                           className={`text-center text-[11px] py-1 rounded transition-colors ${playbackSpeed === speed ? "bg-[#FF003C] text-white font-bold" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-400"}`}
                         >
                           {speed === 1 ? "Normal" : `${speed}x`}
@@ -471,7 +523,11 @@ export default function BenPlayer({
                 onClick={toggleFullscreen}
                 className="hover:text-[#FF003C] transition-colors duration-200"
               >
-                {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                {isAnyFullscreen ? (
+                  <Minimize size={18} />
+                ) : (
+                  <Maximize size={18} />
+                )}
               </button>
             </div>
           </div>

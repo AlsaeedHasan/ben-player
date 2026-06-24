@@ -18,14 +18,14 @@ export default async function Home({ searchParams }: PageProps) {
 
   const sources: VideoQualitySource[] = [];
 
+  if (params.url) {
+    sources.push({ label: "Auto", url: params.url });
+  }
+
   if (params.url1080) sources.push({ label: "1080p", url: params.url1080 });
   if (params.url720) sources.push({ label: "720p", url: params.url720 });
   if (params.url480) sources.push({ label: "480p", url: params.url480 });
   if (params.url360) sources.push({ label: "360p", url: params.url360 });
-
-  if (sources.length === 0 && params.url) {
-    sources.push({ label: "Auto", url: params.url });
-  }
 
   if (sources.length === 0) {
     sources.push(
