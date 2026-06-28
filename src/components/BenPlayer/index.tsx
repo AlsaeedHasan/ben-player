@@ -179,6 +179,29 @@ export default function BenPlayer({
     setShowSettings(false);
   };
 
+  const handleVideoError = () => {
+    const currentIndex = sources.findIndex(
+      (s) => s.label === currentQuality.label,
+    );
+
+    if (currentIndex < sources.length - 1) {
+      const nextQuality = sources[currentIndex + 1];
+
+      if (videoRef.current) {
+        pendingTimeRef.current = videoRef.current.currentTime;
+      }
+
+      setIsMetadataLoaded(false);
+      setCurrentQuality(nextQuality);
+      console.warn(
+        `[BenPlayer] Stream failed for ${currentQuality.label}. Auto-falling back to ${nextQuality.label}...`,
+      );
+    } else {
+      setVideoError("Format not supported or all available sources failed.");
+      setIsBuffering(false);
+    }
+  };
+
   const handleSpeedChange = (speed: number) => {
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
@@ -365,12 +388,7 @@ export default function BenPlayer({
           onPlaying={() => setIsBuffering(false)}
           onSeeking={() => setIsBuffering(true)}
           onSeeked={() => setIsBuffering(false)}
-          onError={() => {
-            setVideoError(
-              "Format not supported or connection dropped by server.",
-            );
-            setIsBuffering(false);
-          }}
+          onError={handleVideoError}
           onClick={(e) => {
             if (
               !window.matchMedia("(max-width: 768px)").matches &&
